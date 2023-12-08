@@ -1,3 +1,3 @@
-module github.com/asaskevich/govalidator
+module github.com/sergeyandreenko/govalidator/v11
 
-go 1.13
+go 1.20

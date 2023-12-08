@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/url"
 	"reflect"
@@ -37,25 +37,32 @@ const rfc3339WithoutZone = "2006-01-02T15:04:05"
 // SetFieldsRequiredByDefault causes validation to fail when struct fields
 // do not include validations or are not explicitly marked as exempt (using `valid:"-"` or `valid:"email,optional"`).
 // This struct definition will fail govalidator.ValidateStruct() (and the field values do not matter):
-//     type exampleStruct struct {
-//         Name  string ``
-//         Email string `valid:"email"`
+//
+//	type exampleStruct struct {
+//	    Name  string ``
+//	    Email string `valid:"email"`
+//
 // This, however, will only fail when Email is empty or an invalid email address:
-//     type exampleStruct2 struct {
-//         Name  string `valid:"-"`
-//         Email string `valid:"email"`
+//
+//	type exampleStruct2 struct {
+//	    Name  string `valid:"-"`
+//	    Email string `valid:"email"`
+//
 // Lastly, this will only fail when Email is an invalid email address but not when it's empty:
-//     type exampleStruct2 struct {
-//         Name  string `valid:"-"`
-//         Email string `valid:"email,optional"`
+//
+//	type exampleStruct2 struct {
+//	    Name  string `valid:"-"`
+//	    Email string `valid:"email,optional"`
 func SetFieldsRequiredByDefault(value bool) {
 	fieldsRequiredByDefault = value
 }
 
 // SetNilPtrAllowedByRequired causes validation to pass for nil ptrs when a field is set to required.
 // The validation will still reject ptr fields in their zero value state. Example with this enabled:
-//     type exampleStruct struct {
-//         Name  *string `valid:"required"`
+//
+//	type exampleStruct struct {
+//	    Name  *string `valid:"required"`
+//
 // With `Name` set to "", this will be considered invalid input and will cause a validation error.
 // With `Name` set to nil, this will be considered valid by validation.
 // By default this is disabled.
@@ -127,22 +134,22 @@ func IsURL(str string) bool {
 // IsRequestURL checks if the string rawurl, assuming
 // it was received in an HTTP request, is a valid
 // URL confirm to RFC 3986
-func IsRequestURL(rawurl string) bool {
-	url, err := url.ParseRequestURI(rawurl)
+func IsRequestURL(rawUrl string) bool {
+	u, err := url.ParseRequestURI(rawUrl)
 	if err != nil {
-		return false //Couldn't even parse the rawurl
+		return false //Couldn't even parse the rawUrl
 	}
-	if len(url.Scheme) == 0 {
+	if len(u.Scheme) == 0 {
 		return false //No Scheme found
 	}
 	return true
 }
 
-// IsRequestURI checks if the string rawurl, assuming
+// IsRequestURI checks if the string rawUrl, assuming
 // it was received in an HTTP request, is an
 // absolute URI or an absolute path.
-func IsRequestURI(rawurl string) bool {
-	_, err := url.ParseRequestURI(rawurl)
+func IsRequestURI(rawUrl string) bool {
+	_, err := url.ParseRequestURI(rawUrl)
 	return err == nil
 }
 
@@ -154,8 +161,8 @@ func IsAlpha(str string) bool {
 	return rxAlpha.MatchString(str)
 }
 
-//IsUTFLetter checks if the string contains only unicode letter characters.
-//Similar to IsAlpha but for all languages. Empty string is valid.
+// IsUTFLetter checks if the string contains only unicode letter characters.
+// Similar to IsAlpha but for all languages. Empty string is valid.
 func IsUTFLetter(str string) bool {
 	if IsNull(str) {
 		return true
@@ -398,8 +405,8 @@ const ulidEncodedSize = 26
 // IsULID checks if the string is a ULID.
 //
 // Implementation got from:
-//   https://github.com/oklog/ulid (Apache-2.0 License)
 //
+//	https://github.com/oklog/ulid (Apache-2.0 License)
 func IsULID(str string) bool {
 	// Check if a base32 encoded ULID is the right length.
 	if len(str) != ulidEncodedSize {
@@ -454,26 +461,26 @@ func IsCreditCard(str string) bool {
 	if !rxCreditCard.MatchString(sanitized) {
 		return false
 	}
-	
+
 	number, _ := ToInt(sanitized)
-	number, lastDigit := number / 10, number % 10	
+	number, lastDigit := number/10, number%10
 
 	var sum int64
-	for i:=0; number > 0; i++ {
+	for i := 0; number > 0; i++ {
 		digit := number % 10
-		
-		if i % 2 == 0 {
+
+		if i%2 == 0 {
 			digit *= 2
 			if digit > 9 {
 				digit -= 9
 			}
 		}
-		
+
 		sum += digit
 		number = number / 10
 	}
-	
-	return (sum + lastDigit) % 10 == 0
+
+	return (sum+lastDigit)%10 == 0
 }
 
 // IsISBN10 checks if the string is an ISBN version 10.
@@ -595,7 +602,7 @@ func IsFilePath(str string) (bool, int) {
 	return false, Unknown
 }
 
-//IsWinFilePath checks both relative & absolute paths in Windows
+// IsWinFilePath checks both relative & absolute paths in Windows
 func IsWinFilePath(str string) bool {
 	if rxARWinPath.MatchString(str) {
 		//check windows path limit see:
@@ -608,7 +615,7 @@ func IsWinFilePath(str string) bool {
 	return false
 }
 
-//IsUnixFilePath checks both relative & absolute paths in Unix
+// IsUnixFilePath checks both relative & absolute paths in Unix
 func IsUnixFilePath(str string) bool {
 	if rxARUnixPath.MatchString(str) {
 		return true
@@ -682,30 +689,30 @@ func IsDNSName(str string) bool {
 // IsHash checks if a string is a hash of type algorithm.
 // Algorithm is one of ['md4', 'md5', 'sha1', 'sha256', 'sha384', 'sha512', 'ripemd128', 'ripemd160', 'tiger128', 'tiger160', 'tiger192', 'crc32', 'crc32b']
 func IsHash(str string, algorithm string) bool {
-	var len string
+	var l string
 	algo := strings.ToLower(algorithm)
 
 	if algo == "crc32" || algo == "crc32b" {
-		len = "8"
+		l = "8"
 	} else if algo == "md5" || algo == "md4" || algo == "ripemd128" || algo == "tiger128" {
-		len = "32"
+		l = "32"
 	} else if algo == "sha1" || algo == "ripemd160" || algo == "tiger160" {
-		len = "40"
+		l = "40"
 	} else if algo == "tiger192" {
-		len = "48"
+		l = "48"
 	} else if algo == "sha3-224" {
-		len = "56"
+		l = "56"
 	} else if algo == "sha256" || algo == "sha3-256" {
-		len = "64"
+		l = "64"
 	} else if algo == "sha384" || algo == "sha3-384" {
-		len = "96"
+		l = "96"
 	} else if algo == "sha512" || algo == "sha3-512" {
-		len = "128"
+		l = "128"
 	} else {
 		return false
 	}
 
-	return Matches(str, "^[a-f0-9]{"+len+"}$")
+	return Matches(str, "^[a-f0-9]{"+l+"}$")
 }
 
 // IsSHA3224 checks is a string is a SHA3-224 hash. Alias for `IsHash(str, "sha3-224")`
@@ -917,7 +924,7 @@ func IsIMSI(str string) bool {
 // IsRsaPublicKey checks if a string is valid public key with provided length
 func IsRsaPublicKey(str string, keylen int) bool {
 	bb := bytes.NewBufferString(str)
-	pemBytes, err := ioutil.ReadAll(bb)
+	pemBytes, err := io.ReadAll(bb)
 	if err != nil {
 		return false
 	}
@@ -1000,7 +1007,8 @@ func ValidateArray(array []interface{}, iterator ConditionIterator) bool {
 // result will be equal to `false` if there are any errors.
 // s is the map containing the data to be validated.
 // m is the validation map in the form:
-//   map[string]interface{}{"name":"required,alpha","address":map[string]interface{}{"line1":"required,alphanum"}}
+//
+//	map[string]interface{}{"name":"required,alpha","address":map[string]interface{}{"line1":"required,alphanum"}}
 func ValidateMap(s map[string]interface{}, m map[string]interface{}) (bool, error) {
 	if s == nil {
 		return true, nil
@@ -1325,8 +1333,8 @@ func RuneLength(str string, params ...string) bool {
 // Alias for IsRsaPublicKey
 func IsRsaPub(str string, params ...string) bool {
 	if len(params) == 1 {
-		len, _ := ToInt(params[0])
-		return IsRsaPublicKey(str, int(len))
+		l, _ := ToInt(params[0])
+		return IsRsaPublicKey(str, int(l))
 	}
 
 	return false
@@ -1678,6 +1686,11 @@ func typeCheck(v reflect.Value, t reflect.StructField, o reflect.Value, options 
 		// If the value is an interface then encode its element
 		if v.IsNil() {
 			return true, nil
+		}
+		// Fix https://github.com/sergeyandreenko/govalidator/issues/454 -- check if the value/interface is not struct, like string
+		val := reflect.ValueOf(v.Interface())
+		if val.Kind() != reflect.Struct {
+			return typeCheck(val, t, o, options)
 		}
 		return ValidateStruct(v.Interface())
 	case reflect.Ptr:
