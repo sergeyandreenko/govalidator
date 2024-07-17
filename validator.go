@@ -1442,9 +1442,14 @@ func checkRequired(v reflect.Value, t reflect.StructField, options tagOptionsMap
 	return true, nil
 }
 
-func typeCheck(v reflect.Value, t reflect.StructField, o reflect.Value, options tagOptionsMap) (isValid bool, resultErr error) {
+func typeCheck(v reflect.Value, t reflect.StructField, o reflect.Value, options tagOptionsMap, wasPtr ...bool) (isValid bool, resultErr error) {
 	if !v.IsValid() {
 		return false, nil
+	}
+
+	originPtr := false
+	if len(wasPtr) > 0 {
+		originPtr = wasPtr[0]
 	}
 
 	tag := t.Tag.Get(tagName)
@@ -1468,7 +1473,7 @@ func typeCheck(v reflect.Value, t reflect.StructField, o reflect.Value, options 
 		options = parseTagIntoMap(tag)
 	}
 
-	if isEmptyValue(v) {
+	if isEmptyValue(v, originPtr) {
 		// an empty value is not validated, checks only required
 		isValid, resultErr = checkRequired(v, t, options)
 		for key := range options {
@@ -1698,7 +1703,7 @@ func typeCheck(v reflect.Value, t reflect.StructField, o reflect.Value, options 
 		if v.IsNil() {
 			return true, nil
 		}
-		return typeCheck(v.Elem(), t, o, options)
+		return typeCheck(v.Elem(), t, o, options, true)
 	case reflect.Struct:
 		return true, nil
 	default:
@@ -1711,7 +1716,12 @@ func stripParams(validatorString string) string {
 }
 
 // isEmptyValue checks whether value empty or not
-func isEmptyValue(v reflect.Value) bool {
+func isEmptyValue(v reflect.Value, wasPtr ...bool) bool {
+	originPtr := false
+	if len(wasPtr) > 0 {
+		originPtr = wasPtr[0]
+	}
+
 	switch v.Kind() {
 	case reflect.String, reflect.Array:
 		return v.Len() == 0
@@ -1720,6 +1730,9 @@ func isEmptyValue(v reflect.Value) bool {
 	case reflect.Bool:
 		return !v.Bool()
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if originPtr {
+			return false
+		}
 		return v.Int() == 0
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		return v.Uint() == 0
